@@ -22,7 +22,13 @@ import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
 
-
+import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLServerSocket;
+import javax.net.ssl.SSLServerSocketFactory;
+import javax.net.ssl.SSLSocket;
+import javax.net.ssl.TrustManagerFactory;
+import java.security.KeyStore;
 
 public class Server {
 	static BufferedReader br = null;
@@ -37,6 +43,10 @@ public class Server {
 	
 	static String isNew;
 	
+	static Server sslServer;
+	static SSLServerSocket ssllisteningSocket;
+	static SSLServerSocket ssllisteningServerSocket;
+	
 	public Server() {
 		listOfAuthUsers = new ArrayList<LoginInfo>();
 		listOflockedIds = new ArrayList<UserInfo>();
@@ -48,8 +58,17 @@ public class Server {
 	}
 
 	
-	public static void main(String[] args) {
-	    String configFile= null;
+	public static void main(String[] arstring) throws Exception {
+		
+		System.setProperty("javax.net.ssl.keyStore","C:/UniMelb/dsassignment2/SSLDemo/chatroom.jks");		
+		System.setProperty("javax.net.ssl.keyStorePassword","chatroom");
+		System.setProperty("javax.net.ssl.trustStore","C:/UniMelb/dsassignment2/SSLDemo/servertrust.jks");
+		System.setProperty("javax.net.ssl.trustStorePassword","chatroom");
+		
+		// Enable debugging to view the handshake and communication which happens between the SSLClient and the SSLServer
+		System.setProperty("javax.net.debug","all");
+		
+	    	String configFile= null;
 		
 		System.out.println("reading command line options");
 		
@@ -61,7 +80,7 @@ public class Server {
 		
 		CommandLine cmd = null;
 		try {
-			cmd = parser.parse( options, args);
+			cmd = parser.parse( options, arstring);
 		} catch (org.apache.commons.cli.ParseException e) {
 			
 			e.printStackTrace();
@@ -79,7 +98,7 @@ public class Server {
 	}
 	
 	
-	public void execute(String currentServerId, String configFile) {
+	public void execute(String currentServerId, String configFile) throws Exception {
 		ServerInfo s;
 		int serverPort = 4444;
 		
@@ -165,11 +184,12 @@ public class Server {
 				}
 			}
 			
-			ServerSocket listeningSocket = null;
-			ServerSocket listeningServerSocket = null;
+			//Create SSL server socket
+			SSLServerSocketFactory sslserversocketfactory = (SSLServerSocketFactory) SSLServerSocketFactory
+					.getDefault();
 			try {
 			
-				listeningServerSocket = new ServerSocket(serverPort2);
+				SSLServerSocket ssllisteningServerSocket = (SSLServerSocket) sslserversocketfactory.createServerSocket(serverPort2);
 				System.out.println("Server is listenting on port " + serverPort2);
 				ServerConnection serverConnection = new ServerConnection(listeningServerSocket, currentServerId);
 
@@ -186,14 +206,15 @@ public class Server {
 
 				if (!currentServerId.equals("AS")){
 					// Create a server socket listening on port 4444
-					listeningSocket = new ServerSocket(serverPort);
+					SSLServerSocket ssllisteningSocket = (SSLServerSocket) sslserversocketfactory.createServerSocket(serverPort);
+					
 					System.out.println(Thread.currentThread().getName() + 
 							" - Server listening on port" + serverPort);
 					
 					//Listen for incoming connections for ever
 					while (true) {
 						//Accept an incoming client connection request
-						Socket clientSocket = listeningSocket.accept();
+						SSLSocket clientSocket = (SSLSocket) ssllisteningSocket.accept();
 						System.out.println(Thread.currentThread().getName() 
 								+ " - Client conection accepted");
 						
@@ -212,9 +233,9 @@ public class Server {
 			} catch (Exception e) {
 				e.printStackTrace();
 			} finally {
-				if(listeningSocket != null) {
+				if(ssllisteningSocket != null) {
 					try {
-						listeningSocket.close();
+						ssllisteningSocket.close();
 					} catch (IOException e) {
 						e.printStackTrace();
 					}
